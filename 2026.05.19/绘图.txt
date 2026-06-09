@@ -1,0 +1,132 @@
+# 导入绘图与数值计算库
+import matplotlib.pyplot as plt
+import numpy as np
+
+# ===================== 1. 定义原始计算数据 =====================
+# 等分份数n序列（包含n=2）
+num_list = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+# 对应n下圆周率近似值
+pi_approx = [
+    0,
+    2.0,
+    2.828427124746190,
+    3.061467458920718,
+    3.121445152258052,
+    3.136548490545939,
+    3.140331156954753,
+    3.141277250932773,
+    3.141513801144301
+]
+# 圆周率精确值
+pi_standard = np.pi
+
+# 计算步长 h = 1/n
+step_h = np.array([1.0 / val for val in num_list])
+# 计算绝对误差：近似值与精确值的差值绝对值
+err_origin = np.abs(pi_standard - np.array(pi_approx))
+
+# ===================== 2. 加载外插法计算结果 =====================
+# 表格中给出的4组外插数据
+extrapolate_dict = {
+    4: 3.414213562373096,
+    16: 3.141418327933211,
+    64: 3.141592658918053,
+    256: 3.141592653589786
+}
+
+# 提取外插数据对应的步长、近似值、误差
+ext_nums = list(extrapolate_dict.keys())
+ext_pi = list(extrapolate_dict.values())
+step_h_ext = np.array([1.0 / val for val in ext_nums])
+pi_ext_arr = np.array(ext_pi)
+err_ext = np.abs(pi_standard - pi_ext_arr)
+
+# ===================== 3. 定义局部收敛阶计算函数 =====================
+def compute_local_order(h_data, error_data):
+    """
+    根据步长h和误差序列，计算相邻区间的局部收敛阶
+    :param h_data: 步长数组
+    :param error_data: 误差数组
+    :return: 区间几何中点步长、对应局部收敛阶列表
+    """
+    # 对步长和误差做常用对数变换
+    log_h = np.log10(h_data)
+    log_err = np.log10(error_data)
+    
+    local_order_result = []
+    mid_step_result = []
+    
+    # 逐段计算相邻两点的斜率（局部收敛阶）
+    for idx in range(len(log_h) - 1):
+        delta_h_log = log_h[idx+1] - log_h[idx]
+        delta_e_log = log_err[idx+1] - log_err[idx]
+        # 局部收敛阶 = 对数误差差 / 对数步长差
+        order = delta_e_log / delta_h_log
+        # 取几何中点作为区间代表步长
+        mid_step = np.sqrt(h_data[idx] * h_data[idx+1])
+        
+        local_order_result.append(order)
+        mid_step_result.append(mid_step)
+    
+    return np.array(mid_step_result), np.array(local_order_result)
+
+# 计算原始序列的局部收敛阶与区间中点步长
+mid_h_origin, order_origin = compute_local_order(step_h, err_origin)
+# 计算外插序列的局部收敛阶与区间中点步长
+mid_h_extra, order_extra = compute_local_order(step_h_ext, err_ext)
+
+# 计算全局整体收敛阶（最小二乘拟合直线斜率）
+log_h_total = np.log10(step_h)
+log_e_total = np.log10(err_origin)
+global_slope_ori, _ = np.polyfit(log_h_total, log_e_total, 1)
+
+log_h_ext_total = np.log10(step_h_ext)
+log_e_ext_total = np.log10(err_ext)
+global_slope_ext, _ = np.polyfit(log_h_ext_total, log_e_ext_total, 1)
+
+# ===================== 4. 双对数坐标绘图 =====================
+plt.figure(figsize=(8, 5.5))
+
+# 绘制原始逼近误差曲线（蓝色三角标记）
+plt.loglog(step_h, err_origin, 'b-^', markersize=7)
+# 绘制外插法误差曲线（红色三角标记）
+plt.loglog(step_h_ext, err_ext, 'r-^', markersize=7)
+
+# 标注原始序列各区间局部收敛阶（线上方标注）
+for h_pos, ord_val in zip(mid_h_origin, order_origin):
+    # 匹配对应位置的误差值
+    match_idx = np.argmin(np.abs(step_h - h_pos))
+    base_err = np.interp(h_pos, step_h, err_origin)
+    plt.text(h_pos, base_err * 1.8, f'{ord_val:.2f}', fontsize=7, color='blue', ha='center')
+
+# 标注外插序列各区间局部收敛阶（线下方标注）
+for h_pos, ord_val in zip(mid_h_extra, order_extra):
+    base_err = np.interp(h_pos, step_h_ext, err_ext)
+    plt.text(h_pos, base_err / 2.2, f'{ord_val:.2f}', fontsize=7, color='red', ha='center')
+
+# 坐标轴范围、刻度设置（与原代码保持完全一致）
+plt.xlim(1e-3, 1)
+plt.ylim(1e-16, 1)
+plt.xticks([1e-3, 1e-2, 1e-1, 1], labels=['$10^{-3}$', '$10^{-2}$', '$10^{-1}$', '$10^{0}$'])
+plt.yticks([1e-15, 1e-10, 1e-5, 1e5], labels=['$10^{-15}$', '$10^{-10}$', '$10^{-5}$', '$10^{0}$'])
+
+# 坐标轴标签
+plt.xlabel(r'$h=1/n$')
+plt.ylabel(r'$e_n=|\pi-\pi_n|$')
+
+# 网格、图例、布局优化
+plt.grid(True, which="both", linestyle="--", alpha=0.6)
+plt.legend()
+plt.tight_layout()
+
+# 展示图像
+plt.show()
+
+# ===================== 5. 控制台输出各区间计算结果 =====================
+# 输出原始序列分段局部收敛阶
+for idx, h_mid, ord_num in zip(range(len(mid_h_origin)), mid_h_origin, order_origin):
+    print(f"区间n={num_list[idx]}~{num_list[idx+1]},h={h_mid:.4e},局部阶={ord_num:.3f}")
+
+# 输出外插序列分段局部收敛阶
+for idx, h_mid, ord_num in zip(range(len(mid_h_extra)), mid_h_extra, order_extra):
+    print(f"区间n={ext_nums[idx]}~{ext_nums[idx+1]},h={h_mid:.4e},局部阶={ord_num:.3f}")

@@ -1,0 +1,29 @@
+import math
+
+# 正多边形逼近π
+def polygon_pi(n):
+    if n < 3:
+        return 0.0
+    return n * math.sin(math.pi / n)
+
+# 理查森外插（优化精度）
+def extrapolate(pi_n, pi_2n):
+    return (4 * pi_2n - pi_n) / 3
+
+# 精确π值
+PI = math.pi
+n_list = [4, 8, 16, 32, 64, 128, 256]
+
+print("n\t逼近π值\t\t\t外插精度π\t\t误差")
+print("-"*60)
+
+for i in range(len(n_list)-1):
+    n = n_list[i]
+    pi1 = polygon_pi(n)
+    pi2 = polygon_pi(n_list[i+1])
+    pi_ext = extrapolate(pi1, pi2)
+    err = abs(PI - pi_ext)
+    print(f"{n}\t{pi1:.10f}\t{pi_ext:.10f}\t{err:.2e}")
+
+# 最终结果
+print(f"\n真实π值: {PI:.10f}")
