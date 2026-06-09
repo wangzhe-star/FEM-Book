@@ -1,0 +1,110 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 1. 原始数据（含n=2）
+n = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+pi_n = [
+    0,
+    2.0,
+    2.828427124746190,
+    3.061467458920718,
+    3.121445152258052,
+    3.136548490545939,
+    3.140331156954753,
+    3.141277250932773,
+    3.141513801144301
+]
+pi_exact = np.pi
+h = np.array([1/x for x in n])
+e_n = np.abs(pi_exact - np.array(pi_n))
+
+# 2. 补全外插数据（表格里的4个点）
+extrapolated_data = {
+    4: 3.414213562373096,
+    16: 3.141418327933211,
+    64: 3.141592658918053,
+    256: 3.141592653589786
+}
+# 提取对应的h和误差
+h_ext = np.array([1/x for x in extrapolated_data.keys()])
+pi_ext = np.array(list(extrapolated_data.values()))
+e_ext = np.abs(pi_exact - pi_ext)
+
+# ===== 分段计算相邻两点局部收敛阶(局部斜率) =====
+def calc_local_order(h_arr, err_arr):
+    """输入h,err数组，返回每个区间局部收敛阶，中点h用于标注"""
+    lg_h = np.log10(h_arr)
+    lg_e = np.log10(err_arr)
+    ord_list = []
+    midh_list = []
+    for i in range(len(lg_h)-1):
+        dh = lg_h[i+1] - lg_h[i]
+        de = lg_e[i+1] - lg_e[i]
+        ord_k = de / dh
+        mid_h = np.sqrt(h_arr[i]*h_arr[i+1])  # 几何中点(对数坐标中点)
+        ord_list.append(ord_k)
+        midh_list.append(mid_h)
+    return np.array(midh_list), np.array(ord_list)
+
+# 原始序列局部阶
+mid_h_ori, ord_ori = calc_local_order(h, e_n)
+# 外插序列局部阶
+mid_h_ext, ord_ext = calc_local_order(h_ext, e_ext)
+
+# 全局整体斜率
+lg_h = np.log10(h)
+lg_e = np.log10(e_n)
+k_original, _ = np.polyfit(lg_h, lg_e, 1)
+
+lg_hext = np.log10(h_ext)
+lg_eext = np.log10(e_ext)
+k_extrap, _ = np.polyfit(lg_hext, lg_eext, 1)
+
+# 3. 绘图（和原图刻度对齐）
+plt.figure(figsize=(8, 5.5))
+# 原始逼近线
+plt.loglog(h, e_n, 'b-^',  markersize=7)
+# 外插线（4个点）
+plt.loglog(h_ext, e_ext, 'r-^',  markersize=7)
+
+# 标注局部收敛阶数值
+# 原始蓝色局部阶标注(点上方)
+for x, yk in zip(mid_h_ori, ord_ori):
+    # 找该h对应的误差基准，往上偏移
+    idx = np.argmin(np.abs(h - x))
+    ey = np.interp(x, h, e_n)
+    plt.text(x, ey*1.8, f'{yk:.2f}', fontsize=7, color='blue', ha='center')
+
+# 外插红色局部阶标注(点下方)
+for x, yk in zip(mid_h_ext, ord_ext):
+    ey = np.interp(x, h_ext, e_ext)
+    plt.text(x, ey/2.2, f'{yk:.2f}', fontsize=7, color='red', ha='center')
+
+# 图上标注全局收敛阶
+# 蓝色线 slope=2.00，箭头落在蓝色线上
+
+# 顶部文本：原始误差逐段收敛阶 1.46, 1.87...
+
+# 刻度设置（修正原代码yticks错误）
+plt.xlim(1e-3, 1)
+plt.ylim(1e-16, 1)
+plt.xticks([1e-3, 1e-2, 1e-1, 1], labels=['$10^{-3}$', '$10^{-2}$', '$10^{-1}$', '$10^{0}$'])
+plt.yticks([1e-15, 1e-10, 1e-5, 1e5], labels=['$10^{-15}$', '$10^{-10}$', '$10^{-5}$', '$10^{0}$'])
+
+plt.xlabel(r'$h=1/n$')
+plt.ylabel(r'$e_n=|\pi-\pi_n|$')
+plt.grid(True, which="both", ls="--", alpha=0.6)
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# 控制台输出结果
+
+
+for i,kh,ko in zip(range(len(mid_h_ori)),mid_h_ori,ord_ori):
+    print(f"区间n={n[i]}~{n[i+1]},h={kh:.4e},局部阶={ko:.3f}")
+
+n_ext_list = list(extrapolated_data.keys())
+for i,kh,ko in zip(range(len(mid_h_ext)),mid_h_ext,ord_ext):
+    print(f"区间n={n_ext_list[i]}~{n_ext_list[i+1]},h={kh:.4e},局部阶={ko:.3f}")
